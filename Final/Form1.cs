@@ -21,33 +21,54 @@ namespace Final
             InitializeComponent();
         }
 
-        private void Form1_Load(object sender, EventArgs e)
-        {
+		private void Form1_Load(object sender, EventArgs e) {
 
-            checkedListBox1.Items.Clear();
-            checkedListBox2.Items.Clear();
-            comboBox1.Items.Clear();
-            comboBox2.Items.Clear();
-            comboBox1.Text = "";
-            comboBox2.Text = "";
-            String selectCommand1 = "SELECT * FROM Food";
-            String selectCommand2 = "SELECT * FROM Drink";
-            SqlConnection cn = new SqlConnection();
-            cn.ConnectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;" +
-                "AttachDbFilename=|DataDirectory|Food.mdf;" +
-                 "Integrated Security=True";
-            cn.Open();
-            DataSet ds1 = new DataSet();
-            SqlDataAdapter daScore1 = new SqlDataAdapter(selectCommand1, cn);
-            daScore1.Fill(ds1);
-            DataSet ds2 = new DataSet();
-            SqlDataAdapter daScore2 = new SqlDataAdapter(selectCommand2, cn);
-            daScore2.Fill(ds2);
+			checkedListBox1.Items.Clear();
+			checkedListBox2.Items.Clear();
+			comboBox1.Items.Clear();
+			comboBox2.Items.Clear();
+			comboBox1.Text = "";
+			comboBox2.Text = "";
+			String selectCommand1 = "SELECT * FROM Food";
+			String selectCommand2 = "SELECT * FROM Drink";
+			SqlConnection cn = new SqlConnection();
+			cn.ConnectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;" +
+				"AttachDbFilename=|DataDirectory|Food.mdf;" +
+				 "Integrated Security=True";
+			cn.Open();
+			DataSet ds1 = new DataSet();
+			SqlDataAdapter daScore1 = new SqlDataAdapter(selectCommand1, cn);
+			daScore1.Fill(ds1);
+			DataSet ds2 = new DataSet();
+			SqlDataAdapter daScore2 = new SqlDataAdapter(selectCommand2, cn);
+			daScore2.Fill(ds2);
 
-            dataGridView1.DataSource = ds1.Tables[0];
-            dataGridView2.DataSource = ds2.Tables[0];
+			dataGridView1.DataSource = ds1.Tables[0];
+			dataGridView2.DataSource = ds2.Tables[0];
 
-            for (int i = 0; i < dataGridView1.RowCount - 1; i++)
+			DataTable dt1 = new DataTable();
+			SqlDataAdapter da1 = new SqlDataAdapter("SELECT Times,id FROM Food WHERE Times > 0 ORDER BY Times DESC OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY", cn);
+			da1.Fill(dt1);
+			chart1.DataSource = dt1;
+			chart1.Series["Frequency1"].XValueMember = "id";
+			chart1.Series["Frequency1"].YValueMembers = "Times";
+
+			DataTable dt2 = new DataTable();
+			SqlDataAdapter da2 = new SqlDataAdapter("SELECT Times,id FROM Drink WHERE Times > 0 ORDER BY Times DESC OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY", cn);
+			da2.Fill(dt2);
+			chart2.DataSource = dt2;
+			chart2.Series["Frequency2"].XValueMember = "id";
+			chart2.Series["Frequency2"].YValueMembers = "Times";
+
+			DataTable dt3 = new DataTable();
+			SqlDataAdapter da3 = new SqlDataAdapter("SELECT DISTINCT toki,price FROM Record", cn);
+			da3.Fill(dt3);
+			chart3.DataSource = dt3;
+			chart3.Series["kane"].XValueMember = "toki";
+			chart3.Series["kane"].YValueMembers = "price";
+			chart3.Series.ResumeUpdates();
+
+			for (int i = 0; i < dataGridView1.RowCount - 1; i++)
             {
                 checkedListBox1.Items.Add(dataGridView1[0, i].Value);
                 comboBox1.Items.Add(dataGridView1[0, i].Value);
@@ -167,6 +188,7 @@ namespace Final
             }
             
             Form1_Load(sender, e);
+			refreshFoodChart();
             MessageBox.Show("刪除成功");
         }
 
@@ -194,6 +216,7 @@ namespace Final
             }
 
             Form1_Load(sender, e);
+			refreshDrinkChart();
             MessageBox.Show("刪除成功");
         }
 
@@ -237,6 +260,8 @@ namespace Final
                         cmd.Parameters.Add("@p2", SqlDbType.NVarChar).Value = food[index];
 
                         cmd.ExecuteNonQuery();
+
+						record(food[index], 0);
                         cn.Close();
                     }
                     catch (Exception ex)
@@ -244,6 +269,7 @@ namespace Final
                         MessageBox.Show(ex.Message);
                     }
                     Form1_Load(sender, e);
+					refreshFoodChart();
                 }
                 else if(dr == DialogResult.Cancel){
 
@@ -310,15 +336,18 @@ namespace Final
                         cmd.Parameters.Add("@p2", SqlDbType.NVarChar).Value = drink[index];
 
                         cmd.ExecuteNonQuery();
-                        cn.Close();
+
+						record(drink[index], 1);
+						cn.Close();
                     }
                     catch (Exception ex)
                     {
                         MessageBox.Show(ex.Message);
                     }
                     Form1_Load(sender, e);
-                }
-                else if (dr == DialogResult.Cancel)
+					refreshDrinkChart();
+				}
+				else if (dr == DialogResult.Cancel)
                 {
 
                 }
@@ -328,5 +357,47 @@ namespace Final
                 MessageBox.Show("請選多一點");
             }
         }
-    }
+
+		private void refreshFoodChart() {
+			chart1.Series.ResumeUpdates();
+		}
+
+		private void refreshDrinkChart() {
+			chart2.Series.ResumeUpdates();
+		}
+
+
+		private void record(String something, int which) {
+			SqlConnection cn = new SqlConnection();
+			cn.ConnectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;" +
+			"AttachDbFilename=|DataDirectory|Food.mdf;" +
+			"Integrated Security=True";
+			cn.Open();
+
+			String sqlstr = null;
+			int price = 0;
+
+			if (which == 0) {
+				sqlstr = "SELECT Price FROM Food WHERE id = @p1";
+			}
+			else if (which == 1) {
+				sqlstr = "SELECT Price FROM Drink WHERE id = @p1";
+			}
+
+			SqlCommand cmd = new SqlCommand(sqlstr, cn);
+			cmd.Parameters.Add("@p1", SqlDbType.NVarChar).Value = something;
+
+			price = (int)cmd.ExecuteScalar();
+
+			sqlstr = "INSERT INTO Record(Id,Price,toki) VALUES(@p1,@p2,@p3)";
+			cmd = new SqlCommand(sqlstr, cn);
+
+			cmd.Parameters.Add("@p1", SqlDbType.NVarChar).Value = something;
+			cmd.Parameters.Add("@p2", SqlDbType.Int).Value = price;
+			cmd.Parameters.Add("@p3", SqlDbType.Date).Value = DateTime.Today;
+
+			cmd.ExecuteNonQuery();
+			cn.Close();
+		}
+	}
 }
